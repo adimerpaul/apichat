@@ -217,6 +217,39 @@ button:hover {
   background: #111827;
 }
 
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.message-actions:empty {
+  display: none;
+}
+
+.message-action {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #9bc5e4;
+  background: #ffffff;
+  color: #1769aa;
+  font-size: 13px;
+}
+
+.message-action:hover {
+  background: #d8edf9;
+}
+
+.message-action.danger {
+  border-color: #f0b4ad;
+  color: #b42318;
+}
+
+.message-action.danger:hover {
+  background: #fde8e5;
+}
+
 .message-form {
   padding: 16px 20px;
   border-top: 1px solid #d9e0e7;

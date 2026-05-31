@@ -7,9 +7,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const mysql = require('mysql2/promise');
 const multer = require('multer');
-const sharp = require('sharp');
-const ffmpeg = require('fluent-ffmpeg');
-const ffmpegPath = require('ffmpeg-static');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,7 +14,6 @@ const io = new Server(server);
 
 const PORT = Number(process.env.PORT || 3000);
 const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
-const TEMP_DIR = path.join(UPLOAD_DIR, 'tmp');
 const allowedMimeTypes = new Set([
   'image/jpeg',
   'image/png',
@@ -26,8 +22,6 @@ const allowedMimeTypes = new Set([
   'video/quicktime',
   'video/webm',
 ]);
-
-ffmpeg.setFfmpegPath(ffmpegPath);
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -45,7 +39,7 @@ const connectedUsers = new Map();
 
 const upload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, callback) => callback(null, TEMP_DIR),
+    destination: (_req, _file, callback) => callback(null, UPLOAD_DIR),
     filename: (_req, file, callback) => {
       const extension = path.extname(file.originalname).toLowerCase();
       callback(null, `${Date.now()}-${cryptoRandom()}${extension}`);
@@ -72,35 +66,8 @@ function cryptoRandom() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function wait(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-async function removeTempFile(filePath) {
-  const retryableCodes = new Set(['EBUSY', 'EPERM']);
-
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
-    try {
-      await fs.unlink(filePath);
-      return;
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        return;
-      }
-
-      if (!retryableCodes.has(error.code) || attempt === 5) {
-        throw error;
-      }
-
-      await wait(120 * attempt);
-    }
-  }
-}
-
 async function ensureUploadDirs() {
-  await fs.mkdir(TEMP_DIR, { recursive: true });
+  await fs.mkdir(UPLOAD_DIR, { recursive: true });
 }
 
 async function columnExists(table, column) {
@@ -182,60 +149,6 @@ function removeConnectedUser(socket) {
   emitConnectedUsers();
 }
 
-async function compressImage(file) {
-  const filename = `${Date.now()}-${cryptoRandom()}.webp`;
-  const outputPath = path.join(UPLOAD_DIR, filename);
-
-  await sharp(file.path)
-    .rotate()
-    .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 78 })
-    .toFile(outputPath);
-  await removeTempFile(file.path);
-
-  const stats = await fs.stat(outputPath);
-
-  return {
-    media_type: 'image',
-    media_url: `/uploads/${filename}`,
-    media_name: file.originalname,
-    media_size: stats.size,
-  };
-}
-
-async function compressVideo(file) {
-  const filename = `${Date.now()}-${cryptoRandom()}.mp4`;
-  const outputPath = path.join(UPLOAD_DIR, filename);
-
-  await new Promise((resolve, reject) => {
-    ffmpeg(file.path)
-      .outputOptions([
-        '-vf scale=trunc(min(1280,iw)/2)*2:-2',
-        '-c:v libx264',
-        '-preset veryfast',
-        '-crf 28',
-        '-c:a aac',
-        '-b:a 128k',
-        '-movflags +faststart',
-      ])
-      .format('mp4')
-      .on('end', resolve)
-      .on('error', reject)
-      .save(outputPath);
-  });
-
-  await removeTempFile(file.path);
-
-  const stats = await fs.stat(outputPath);
-
-  return {
-    media_type: 'video',
-    media_url: `/uploads/${filename}`,
-    media_name: file.originalname,
-    media_size: stats.size,
-  };
-}
-
 async function processUpload(file) {
   if (!file) {
     return {
@@ -246,11 +159,12 @@ async function processUpload(file) {
     };
   }
 
-  if (file.mimetype.startsWith('image/')) {
-    return compressImage(file);
-  }
-
-  return compressVideo(file);
+  return {
+    media_type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+    media_url: `/uploads/${path.basename(file.path)}`,
+    media_name: file.originalname,
+    media_size: file.size,
+  };
 }
 
 async function ensureDatabase() {
@@ -451,9 +365,6 @@ app.post('/api/chats', upload.single('file'), async (req, res, next) => {
     io.emit('chat:message', message);
     res.status(201).json({ ok: true, message });
   } catch (error) {
-    if (req.file) {
-      await removeTempFile(req.file.path).catch(() => {});
-    }
     next(error);
   }
 });
@@ -461,6 +372,7 @@ app.post('/api/chats', upload.single('file'), async (req, res, next) => {
 app.put('/api/chats/:id', async (req, res, next) => {
   try {
     const cleanMessage = String(req.body.message || '').trim();
+    const userId = Number(req.body.user_id);
 
     if (!cleanMessage) {
       const error = new Error('El mensaje no puede estar vacio.');
@@ -468,10 +380,22 @@ app.put('/api/chats/:id', async (req, res, next) => {
       throw error;
     }
 
-    await pool.query(
-      'UPDATE messages SET message = ? WHERE id = ? AND deleted_at IS NULL',
-      [cleanMessage, req.params.id]
+    if (!userId) {
+      const error = new Error('Usuario invalido.');
+      error.status = 400;
+      throw error;
+    }
+
+    const [result] = await pool.query(
+      'UPDATE messages SET message = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+      [cleanMessage, req.params.id, userId]
     );
+
+    if (result.affectedRows === 0) {
+      const error = new Error('Solo puedes editar tus propios mensajes.');
+      error.status = 403;
+      throw error;
+    }
 
     const message = await getMessageById(req.params.id);
     io.emit('chat:updated', message);
@@ -483,10 +407,25 @@ app.put('/api/chats/:id', async (req, res, next) => {
 
 app.delete('/api/chats/:id', async (req, res, next) => {
   try {
-    await pool.query(
-      'UPDATE messages SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
-      [req.params.id]
+    const userId = Number(req.body.user_id);
+
+    if (!userId) {
+      const error = new Error('Usuario invalido.');
+      error.status = 400;
+      throw error;
+    }
+
+    const [result] = await pool.query(
+      'UPDATE messages SET deleted_at = NOW() WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+      [req.params.id, userId]
     );
+
+    if (result.affectedRows === 0) {
+      const error = new Error('Solo puedes borrar tus propios mensajes.');
+      error.status = 403;
+      throw error;
+    }
+
     io.emit('chat:deleted', { id: Number(req.params.id) });
     res.json({ ok: true });
   } catch (error) {

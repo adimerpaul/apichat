@@ -15,6 +15,10 @@ const messageError = document.querySelector('#messageError');
 
 let activeUser = null;
 
+function showMessageError(message) {
+  messageError.textContent = message;
+}
+
 function formatDate(value) {
   return new Intl.DateTimeFormat('es-BO', {
     hour: '2-digit',
@@ -40,6 +44,7 @@ function renderMessage(item) {
     </div>
     <div class="message-text"></div>
     <div class="message-media"></div>
+    <div class="message-actions"></div>
   `;
 
   li.querySelector('strong').textContent = item.user_name;
@@ -63,6 +68,24 @@ function renderMessage(item) {
     mediaContainer.appendChild(video);
   }
 
+  if (isOwn) {
+    const actions = li.querySelector('.message-actions');
+    const editButton = document.createElement('button');
+    const deleteButton = document.createElement('button');
+
+    editButton.type = 'button';
+    editButton.className = 'message-action';
+    editButton.textContent = 'Editar';
+    editButton.addEventListener('click', () => editMessage(item));
+
+    deleteButton.type = 'button';
+    deleteButton.className = 'message-action danger';
+    deleteButton.textContent = 'Borrar';
+    deleteButton.addEventListener('click', () => deleteMessage(item));
+
+    actions.append(editButton, deleteButton);
+  }
+
   messagesList.appendChild(li);
   messagesList.scrollTop = messagesList.scrollHeight;
 }
@@ -80,6 +103,71 @@ function renderConnectedUsers(users) {
     li.textContent = user.sockets > 1 ? `${user.name} (${user.sockets})` : user.name;
     connectedUsersList.appendChild(li);
   });
+}
+
+async function editMessage(item) {
+  const currentText = item.message || '';
+  const nextText = window.prompt('Editar mensaje', currentText);
+
+  if (nextText === null) {
+    return;
+  }
+
+  const cleanText = nextText.trim();
+
+  if (!cleanText) {
+    showMessageError('El mensaje no puede estar vacio.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/chats/${item.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: activeUser.id,
+        message: cleanText,
+      }),
+    });
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      throw new Error(data.message || 'No se pudo editar el mensaje.');
+    }
+
+    messageError.textContent = '';
+  } catch (error) {
+    showMessageError(error.message);
+  }
+}
+
+async function deleteMessage(item) {
+  if (!window.confirm('Borrar este mensaje?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/chats/${item.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: activeUser.id,
+      }),
+    });
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      throw new Error(data.message || 'No se pudo borrar el mensaje.');
+    }
+
+    messageError.textContent = '';
+  } catch (error) {
+    showMessageError(error.message);
+  }
 }
 
 registerForm.addEventListener('submit', (event) => {
@@ -153,8 +241,13 @@ socket.on('chat:updated', (message) => {
     return;
   }
 
+  const nextNode = currentMessages[index].nextSibling;
   currentMessages[index].remove();
   renderMessage(message);
+
+  if (nextNode) {
+    messagesList.insertBefore(messagesList.lastElementChild, nextNode);
+  }
 });
 socket.on('chat:deleted', ({ id }) => {
   const item = Array.from(messagesList.children).find((node) => Number(node.dataset.id) === Number(id));
