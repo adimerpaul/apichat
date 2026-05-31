@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Chat Socket.IO</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section id="registerPanel" class="panel register-panel">
+        <h1>Chat</h1>
+        <form id="registerForm" class="form">
+          <label for="nameInput">Nombre de usuario</label>
+          <div class="inline-form">
+            <input id="nameInput" name="name" type="text" maxlength="80" autocomplete="name" required>
+            <button type="submit">Entrar</button>
+          </div>
+          <p id="registerError" class="error" role="alert"></p>
+        </form>
+      </section>
+
+      <section id="chatPanel" class="panel chat-panel" hidden>
+        <header class="chat-header">
+          <div>
+            <span class="label">Usuario</span>
+            <strong id="currentUser"></strong>
+          </div>
+          <a href="/api/chats" target="_blank" rel="noreferrer">Ver GET /api/chats</a>
+        </header>
+
+        <ol id="messages" class="messages"></ol>
+
+        <form id="messageForm" class="message-form">
+          <input id="messageInput" type="text" autocomplete="off" placeholder="Escribe un mensaje" required>
+          <button type="submit">Enviar</button>
+        </form>
+        <p id="messageError" class="error" role="alert"></p>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
