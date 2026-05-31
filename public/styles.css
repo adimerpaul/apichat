@@ -20,7 +20,7 @@ input {
 }
 
 .app {
-  width: min(920px, calc(100% - 32px));
+  width: min(1080px, calc(100% - 32px));
   margin: 32px auto;
 }
 
@@ -59,6 +59,12 @@ input {
   border-radius: 6px;
   padding: 12px 14px;
   outline: none;
+}
+
+input[type="file"] {
+  max-width: 260px;
+  padding: 10px;
+  background: #ffffff;
 }
 
 input:focus {
@@ -109,11 +115,51 @@ button:hover {
   text-decoration: none;
 }
 
+.header-links {
+  display: flex;
+  gap: 14px;
+}
+
 .label {
   display: block;
   margin-bottom: 4px;
   color: #5c6b7a;
   font-size: 13px;
+}
+
+.chat-body {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 0;
+}
+
+.connected {
+  border-right: 1px solid #d9e0e7;
+  padding: 18px;
+  background: #ffffff;
+  overflow-y: auto;
+}
+
+.connected ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.connected li {
+  padding: 9px 0;
+  border-bottom: 1px solid #edf1f5;
+  overflow-wrap: anywhere;
+}
+
+.connected li::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #1a7f37;
 }
 
 .messages {
@@ -153,6 +199,24 @@ button:hover {
   white-space: pre-wrap;
 }
 
+.message-media {
+  margin-top: 10px;
+}
+
+.message-media:empty {
+  display: none;
+}
+
+.message-media img,
+.message-media video {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #111827;
+}
+
 .message-form {
   padding: 16px 20px;
   border-top: 1px solid #d9e0e7;
@@ -184,6 +248,20 @@ button:hover {
   .chat-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .chat-body {
+    grid-template-columns: 1fr;
+  }
+
+  .connected {
+    max-height: 132px;
+    border-right: 0;
+    border-bottom: 1px solid #d9e0e7;
+  }
+
+  input[type="file"] {
+    max-width: none;
   }
 
   .messages li {

@@ -26,13 +26,23 @@
             <span class="label">Usuario</span>
             <strong id="currentUser"></strong>
           </div>
-          <a href="/api/chats" target="_blank" rel="noreferrer">Ver GET /api/chats</a>
+          <nav class="header-links">
+            <a href="/api/chats" target="_blank" rel="noreferrer">GET chats</a>
+            <a href="/api/connected-users" target="_blank" rel="noreferrer">Conectados</a>
+          </nav>
         </header>
 
-        <ol id="messages" class="messages"></ol>
+        <div class="chat-body">
+          <aside class="connected">
+            <span class="label">Conectados</span>
+            <ul id="connectedUsers"></ul>
+          </aside>
+          <ol id="messages" class="messages"></ol>
+        </div>
 
-        <form id="messageForm" class="message-form">
-          <input id="messageInput" type="text" autocomplete="off" placeholder="Escribe un mensaje" required>
+        <form id="messageForm" class="message-form" enctype="multipart/form-data">
+          <input id="messageInput" type="text" autocomplete="off" placeholder="Escribe un mensaje">
+          <input id="fileInput" type="file" accept="image/*,video/mp4,video/quicktime,video/webm">
           <button type="submit">Enviar</button>
         </form>
         <p id="messageError" class="error" role="alert"></p>
